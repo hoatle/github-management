@@ -1,0 +1,56 @@
+name: 'Terraform'
+on:
+  push:
+
+env:
+  TERRAFORM_VERSION: 0.12.23
+  PRIVATE_AUTO_TFVARS_FILE: ${{ secrets.PRIVATE_AUTO_TFVARS_FILE }} # base-64 encoded file
+  PUBLIC_AUTO_TFVARS_FILE: ${{ secrets.PUBLIC_AUTO_TFVARS_FILE }}
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v2
+
+      - name: 'Create .tfvars files'
+        run: |
+          echo "$PRIVATE_AUTO_TFVARS_FILE" | base64 --decode > private.auto.tfvars
+          echo "private.auto.tfvars was created"
+          echo "$PUBLIC_AUTO_TFVARS_FILE" | base64 --decode > public.auto.tfvars
+          echo "cat public.auto.tfvars"
+          cat public.auto.tfvars
+
+      - name: 'Terraform Format'
+        uses: hashicorp/terraform-github-actions@master
+        with:
+          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+          tf_actions_subcommand: 'fmt'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 'Terraform Init'
+        uses: hashicorp/terraform-github-actions@master
+        with:
+          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+          tf_actions_subcommand: 'init'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 'Terraform Validate'
+        uses: hashicorp/terraform-github-actions@master
+        with:
+          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+          tf_actions_subcommand: 'validate'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 'Terraform Plan'
+        uses: hashicorp/terraform-github-actions@master
+        with:
+          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+          tf_actions_subcommand: 'plan'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
