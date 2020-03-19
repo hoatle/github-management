@@ -1,4 +1,6 @@
+backend.tfvars
 private.auto.tfvars
 public.auto.tfvars
 .terraform/
-terraform.tfstate
+terraform.tfstate*
+

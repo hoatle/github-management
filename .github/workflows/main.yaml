@@ -1,64 +1,85 @@
 name: 'Terraform'
 on:
   push:
+  pull_request:
 
 env:
   TERRAFORM_VERSION: 0.12.23
-  PRIVATE_AUTO_TFVARS_FILE: ${{ secrets.PRIVATE_AUTO_TFVARS_FILE }} # base-64 encoded file
+  # base-64 encoded files
+  BACKEND_TFVARS_FILE: ${{ secrets.BACKEND_TFVARS_FILE }}
+  BACKEND_TFVARS_FILE_MASTER: ${{ secrets.BACKEND_TFVARS_FILE_MASTER }}
+  PRIVATE_AUTO_TFVARS_FILE: ${{ secrets.PRIVATE_AUTO_TFVARS_FILE }}
+  PRIVATE_AUTO_TFVARS_FILE_MASTER: ${{ secrets.PRIVATE_AUTO_TFVARS_FILE_MASTER }}
   PUBLIC_AUTO_TFVARS_FILE: ${{ secrets.PUBLIC_AUTO_TFVARS_FILE }}
+  PUBLIC_AUTO_TFVARS_FILE_MASTER: ${{ secrets.PUBLIC_AUTO_TFVARS_FILE_MASTER }}
 
 jobs:
   terraform:
-    name: 'Terraform'
     runs-on: ubuntu-latest
     steps:
-      - name: 'Checkout'
-        uses: actions/checkout@v2
+    - name: 'Checkout'
+      uses: actions/checkout@v2
 
-      - name: 'Create .tfvars files'
-        run: |
-          echo "$PRIVATE_AUTO_TFVARS_FILE" | base64 --decode > private.auto.tfvars
-          echo "private.auto.tfvars was created"
-          echo "$PUBLIC_AUTO_TFVARS_FILE" | base64 --decode > public.auto.tfvars
-          echo "cat public.auto.tfvars"
-          cat public.auto.tfvars
+    - name: Normalize env vars
+      run: |
+        set -e
+        . ./scripts/normalize_github_actions.sh
 
-      - name: 'Terraform Format'
-        uses: hashicorp/terraform-github-actions@master
-        with:
-          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
-          tf_actions_subcommand: 'fmt'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: 'Create .tfvars files'
+      run: |
+        echo "$BACKEND_TFVARS_FILE" | base64 --decode > backend.tfvars
+        echo "backend.tfvars was created"
+        echo "$PRIVATE_AUTO_TFVARS_FILE" | base64 --decode > private.auto.tfvars
+        echo "private.auto.tfvars was created"
+        echo "$PUBLIC_AUTO_TFVARS_FILE" | base64 --decode > public.auto.tfvars
+        echo "cat public.auto.tfvars"
+        cat public.auto.tfvars
 
-      - name: 'Terraform Init'
-        uses: hashicorp/terraform-github-actions@master
-        with:
-          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
-          tf_actions_subcommand: 'init'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # if no BACKEND_TFVARS_FILE configured, create the dummy backend to init and validate
+        if [ -z "$BACKEND_TFVARS_FILE" ]; then
+          cp backend-dummy.tfvars backend.tfvars
+        fi
 
-      - name: 'Terraform Validate'
-        uses: hashicorp/terraform-github-actions@master
-        with:
-          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
-          tf_actions_subcommand: 'validate'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: 'Execute: terraform fmt'
+      uses: hashicorp/terraform-github-actions@master
+      with:
+        tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+        tf_actions_subcommand: 'fmt'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 'Terraform Plan'
-        uses: hashicorp/terraform-github-actions@master
-        with:
-          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
-          tf_actions_subcommand: 'plan'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: 'Execute: terraform init'
+      uses: hashicorp/terraform-github-actions@master
+      with:
+        tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+        tf_actions_subcommand: 'init'
+        args: '-backend-config="backend.tfvars"'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 'Terraform Apply'
-        uses: hashicorp/terraform-github-actions@master
-        with:
-          tf_actions_version: ${{ env.TERRAFORM_VERSION }}
-          tf_actions_subcommand: 'apply'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: 'Execute: terraform validate'
+      uses: hashicorp/terraform-github-actions@master
+      with:
+        tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+        tf_actions_subcommand: 'validate'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 'Execute: terraform plan'
+      uses: hashicorp/terraform-github-actions@master
+      # TODO(hoatle): comment diff on PRs
+      if: env.BRANCH_NAME == 'master' # apply on the right branch only;
+      with:
+        tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+        tf_actions_subcommand: 'plan'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 'Execute: terraform apply'
+      uses: hashicorp/terraform-github-actions@master
+      if: env.BRANCH_NAME == 'master' # apply on the right branch only
+      with:
+        tf_actions_version: ${{ env.TERRAFORM_VERSION }}
+        tf_actions_subcommand: 'apply'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
