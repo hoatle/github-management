@@ -35,11 +35,6 @@ jobs:
         echo "cat public.auto.tfvars"
         cat public.auto.tfvars
 
-        # if no BACKEND_TFVARS_FILE configured, create the dummy backend to init and validate
-        if [ -z "$BACKEND_TFVARS_FILE" ]; then
-          cp backend-dummy.tfvars backend.tfvars
-        fi
-
     - name: 'Execute: terraform fmt'
       uses: hashicorp/terraform-github-actions@master
       with:
